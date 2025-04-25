@@ -10,10 +10,9 @@ import argparse
 from pathlib import Path
 import llm
 
-def process_query(query: str) -> dict:
-    """Process a custom query using llm."""
+def process_query(query: str) -> str:
+    """Process a custom query using llm and return only the refined command as plain text, or empty string on error."""
     try:
-        # Create a prompt for command processing
         system_prompt = """
 You are a shell command processor. Your task is to analyze shell commands and suggest corrections.
 
@@ -33,62 +32,26 @@ Rules:
 6. Do not use code blocks or backticks
 """
         prompt = f"Process this shell input: {query}"
-        
-        # Use llm as a command-line tool via subprocess
         import subprocess
         import json
-        
-        # Run llm command with system prompt
         cmd = ["llm", "-s", system_prompt, prompt, "--no-stream", "--no-log", "-x"]
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-        
         if result.returncode != 0:
-            error = result.stderr.strip() or "LLM command failed"
-            return {
-                "success": False,
-                "error": error
-            }
-        
-        # Parse the JSON response from LLM
+            return ""
         try:
-            # First parse the raw LLM output
             llm_output = json.loads(result.stdout.strip())
-            
-            # Get commands
-            original_cmd = query.strip()
-            refined_cmd = llm_output.get("refined", original_cmd)
-            
-            return {
-                "success": True,
-                "is_command": llm_output.get("is_command", False),
-                "original": original_cmd,  # Keep as string
-                "refined": refined_cmd,    # Keep as string
-                "explanation": llm_output.get("explanation", ""),
-                "error": None
-            }
-        except json.JSONDecodeError as e:
-            return {
-                "success": False,
-                "error": f"Invalid JSON response: {result.stdout.strip()}"
-            }
-        except Exception as e:
-            return {
-                "success": False,
-                "error": f"Error processing response: {str(e)}"
-            }
-            
-    except subprocess.TimeoutExpired:
-        return {
-            "success": False,
-            "error": "LLM process timed out after 30 seconds"
-        }
-    except Exception as e:
-        error_msg = f"LLM error: {str(e)}"
-        print(error_msg, file=sys.stderr)
-        return {
-            "success": False,
-            "error": error_msg
-        }
+            is_command = llm_output.get("is_command", False)
+            refined_cmd = llm_output.get("refined", "").strip()
+            if is_command and refined_cmd:
+                return refined_cmd
+            elif not is_command and refined_cmd:
+                return refined_cmd
+            else:
+                return ""
+        except Exception:
+            return ""
+    except Exception:
+        return ""
 
 def explain_command(command: str, status: int, output: str, error: str) -> dict:
     """Explain a command execution result."""
@@ -190,23 +153,25 @@ def main():
     
     if args.action == "process":
         if not args.query:
-            print(json.dumps({"success": False, "error": "Query required for process action"}))
-            return
-        result = process_query(args.query)
-    
+            sys.exit(1)
+        refined = process_query(args.query)
+        if refined:
+            print(refined)
+            sys.exit(0)
+        else:
+            sys.exit(1)
     elif args.action == "explain":
         if not all([args.command, args.status is not None]):
             print(json.dumps({"success": False, "error": "Command and status required for explain action"}))
             return
         result = explain_command(args.command, args.status, args.output or "", args.error or "")
-    
+        print(json.dumps(result))
     elif args.action == "failure":
         if not all([args.command, args.status is not None]):
             print(json.dumps({"success": False, "error": "Command and status required for failure action"}))
             return
         result = explain_failure(args.command, args.status, args.error or "")
-    
-    print(json.dumps(result))
+        print(json.dumps(result))
 
 if __name__ == "__main__":
     main()
