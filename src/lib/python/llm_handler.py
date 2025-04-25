@@ -14,43 +14,79 @@ def process_query(query: str) -> dict:
     """Process a custom query using llm."""
     try:
         # Create a prompt for command processing
-        system_prompt = "You are a shell command processor. Convert natural language requests into actual shell commands."
-        prompt = f"Convert this request into a shell command: {query}"
+        system_prompt = """
+You are a shell command processor. Your task is to analyze shell commands and suggest corrections.
+
+Output ONLY a JSON object in this format:
+{
+    "is_command": true/false,
+    "refined": "corrected command if needed",
+    "explanation": "brief explanation of what changed and why"
+}
+
+Rules:
+1. If input is a valid command: set is_command=true and make refined same as input
+2. If input needs fixing: set is_command=false and provide corrected command
+3. Always provide a brief, friendly explanation
+4. NEVER include any text outside the JSON object
+5. NEVER use markdown formatting in the explanation
+6. Do not use code blocks or backticks
+"""
+        prompt = f"Process this shell input: {query}"
         
         # Use llm as a command-line tool via subprocess
         import subprocess
+        import json
         
         # Run llm command with system prompt
-        cmd = ["llm", "-s", system_prompt, prompt]
-        result = subprocess.run(cmd, capture_output=True, text=True)
+        cmd = ["llm", "-s", system_prompt, prompt, "--no-stream", "--no-log", "-x"]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
         
         if result.returncode != 0:
             error = result.stderr.strip() or "LLM command failed"
             return {
                 "success": False,
-                "command": None,
                 "error": error
             }
         
-        command = result.stdout.strip()
-        if not command:
+        # Parse the JSON response from LLM
+        try:
+            # First parse the raw LLM output
+            llm_output = json.loads(result.stdout.strip())
+            
+            # Get commands
+            original_cmd = query.strip()
+            refined_cmd = llm_output.get("refined", original_cmd)
+            
+            return {
+                "success": True,
+                "is_command": llm_output.get("is_command", False),
+                "original": original_cmd,  # Keep as string
+                "refined": refined_cmd,    # Keep as string
+                "explanation": llm_output.get("explanation", ""),
+                "error": None
+            }
+        except json.JSONDecodeError as e:
             return {
                 "success": False,
-                "command": None,
-                "error": "LLM returned empty command"
+                "error": f"Invalid JSON response: {result.stdout.strip()}"
             }
-        
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Error processing response: {str(e)}"
+            }
+            
+    except subprocess.TimeoutExpired:
         return {
-            "success": True,
-            "command": command,
-            "error": None
+            "success": False,
+            "error": "LLM process timed out after 30 seconds"
         }
     except Exception as e:
         error_msg = f"LLM error: {str(e)}"
         print(error_msg, file=sys.stderr)
         return {
             "success": False,
-            "command": None,
             "error": error_msg
         }
 

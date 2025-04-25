@@ -24,13 +24,21 @@ _jarvis_process_custom_query() {
     local query="$1"
     _jarvis_debug "debug" "Processing query using llm: $query"
     
+    # Set up direct terminal output
+    exec 3>/dev/tty
+    
     # Set a timeout for the Python script (30 seconds)
     local result
-    result=$(timeout 30 python3 "${JARVIS_HOME}/lib/python/llm_handler.py" process --query "$query" 2>&1)
+    _jarvis_start_spinner "Thinking..."
+    result=$(timeout --kill-after=5 30 python3 "${JARVIS_HOME}/lib/python/llm_handler.py" process --query "$query" 2>&1)
     local py_status=$?
+    _jarvis_stop_spinner
+    
+    # Parse debug info first
+    _jarvis_debug "debug" "Processing query using llm: $query" >&3
     
     # Check for timeout
-    if [[ $py_status -eq 124 ]]; then
+    if [[ $py_status -eq 124 || $py_status -eq 137 ]]; then
         echo "Query processing timed out after 30 seconds" >&2
         return 1
     fi
@@ -47,14 +55,85 @@ _jarvis_process_custom_query() {
     fi
     
     # Parse JSON response
-    local success=$(echo "$result" | python3 -c 'import json,sys; print(json.load(sys.stdin)["success"])')
+    local parsed_result
+    parsed_result=$(echo "$result" | python3 -c '
+import json, sys
+try:
+    data = json.load(sys.stdin)
+    if data["success"]:
+        print(json.dumps({
+            "success": True,
+            "is_command": data.get("is_command", False),
+            "original": data.get("original", ""),
+            "refined": data.get("refined", ""),
+            "explanation": data.get("explanation", "")
+        }))
+    else:
+        print(json.dumps({
+            "success": False,
+            "error": data.get("error", "Unknown error")
+        }))
+except Exception as e:
+    print(json.dumps({"success": False, "error": str(e)}))
+')
+    
+    local success=$(echo "$parsed_result" | python3 -c 'import json,sys; print(json.load(sys.stdin)["success"])')
     if [[ $success == "True" ]]; then
-        local command=$(echo "$result" | python3 -c 'import json,sys; print(json.load(sys.stdin)["command"])')
-        if [[ -z "$command" ]]; then
-            echo "Error: Empty command returned" >&2
-            return 1
+        # Get all fields from the response
+        local is_command=$(echo "$parsed_result" | python3 -c 'import json,sys; print(json.load(sys.stdin)["is_command"])')
+        local original=$(echo "$parsed_result" | python3 -c 'import json,sys; print(json.load(sys.stdin)["original"])')
+        local refined=$(echo "$parsed_result" | python3 -c 'import json,sys; print(json.load(sys.stdin)["refined"])')
+        local explanation=$(echo "$parsed_result" | python3 -c 'import json,sys; print(json.load(sys.stdin)["explanation"])')
+        
+        # Show the explanation
+        echo "$explanation" >&2
+        
+        # If it's already a valid command and no refinement needed
+        if [[ $is_command == "True" && "$original" == "$refined" ]]; then
+            echo "$original"
+            return 0
         fi
-        echo "$command"
+        
+        # Already have terminal output set up
+        
+        # Show options with highlighting
+        echo "\n\033[1mPlease choose an action:\033[0m" >&3
+        echo "\033[1;32m1)\033[0m Use refined command: \033[0;32m${refined[*]}\033[0m" >&3
+        echo "\033[1;33m2)\033[0m Use original input: \033[0;34m${original[*]}\033[0m" >&3
+        echo "\033[1;31m3)\033[0m Cancel" >&3
+        
+        # Get user choice with explicit flush
+        local choice=""
+        while true; do
+            echo -n "\033[1mEnter your choice (1-3):\033[0m " >&3
+            command stty echo  # Ensure echo is on
+            read -r choice </dev/tty  # Read directly from terminal
+            
+            # Skip empty or whitespace-only input
+            [[ -z "${choice// /}" ]] && continue
+            
+            case "$choice" in
+                1)
+                    exec 3>&-  # Close terminal fd
+                    echo "$refined"
+                    return 0
+                    ;;
+                2)
+                    exec 3>&-  # Close terminal fd
+                    echo "$original"
+                    return 0
+                    ;;
+                3)
+                    exec 3>&-  # Close terminal fd
+                    return 1
+                    ;;
+                *)
+                    # Invalid input, clear and try again
+                    echo -ne "\r\033[K" >&3  # Clear the line
+                    echo "\033[31mPlease enter 1, 2, or 3\033[0m" >&3
+                    ;;
+            esac
+        done
     else
         local error=$(echo "$result" | python3 -c 'import json,sys; print(json.load(sys.stdin)["error"])')
         echo "Error processing query: $error" >&2

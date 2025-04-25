@@ -1,5 +1,57 @@
 #!/usr/bin/env zsh
 
+# Spinner process ID
+typeset -g _jarvis_spinner_pid
+
+# Start a spinner
+_jarvis_start_spinner() {
+    local msg="$1"
+    # Define spinner characters
+    local -a spinner_chars=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
+    
+    # Open direct terminal connection
+    exec 4>/dev/tty
+    
+    # Ensure we're in a terminal
+    [[ -t 1 ]] || { exec 4>&-; return; }
+    
+    # Function to cleanup spinner
+    _jarvis_cleanup_spinner() {
+        [[ -n "$_jarvis_spinner_pid" ]] && kill $_jarvis_spinner_pid &>/dev/null
+        _jarvis_spinner_pid=""
+        tput cnorm >&4 # Show cursor
+        echo -ne "\r\033[K" >&4 # Clear line
+        exec 4>&- # Close terminal connection
+    }
+    
+    # Start spinner in background
+    (
+        local i=0
+        tput civis >&4 # Hide cursor
+        while true; do
+            echo -ne "\r\033[K${spinner_chars[$((i % 10 + 1))]} $msg" >&4
+            sleep 0.1
+            ((i++))
+        done
+    ) &
+    
+    _jarvis_spinner_pid=$!
+    
+    # Ensure cleanup on exit or interrupt
+    trap _jarvis_cleanup_spinner EXIT INT TERM
+}
+
+# Stop the spinner
+_jarvis_stop_spinner() {
+    [[ -n "$_jarvis_spinner_pid" ]] && kill $_jarvis_spinner_pid &>/dev/null
+    _jarvis_spinner_pid=""
+    # Open direct terminal connection
+    exec 4>/dev/tty
+    tput cnorm >&4 # Show cursor
+    echo -ne "\r\033[K" >&4 # Clear line
+    exec 4>&- # Close terminal connection
+}
+
 # Utility functions for Jarvis
 
 # Get trigger prefix from config or use default
