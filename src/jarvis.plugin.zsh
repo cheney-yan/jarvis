@@ -40,7 +40,7 @@ function @jarvis() {
     local processed_cmd="$(cat "${cmd_dir}/ai_output")"
     # compare processed_cmd with $*
     _jarvis_debug "trace" "Comparing processed command: $processed_cmd with $JARVIS_NO_CHANGE_RESULT"
-    if [[ $ai_ret -eq 0 && "$processed_cmd" = "$JARVIS_NO_CHANGE_RESULT" ]]; then
+    if [[ $ai_ret -eq 0 && ( "$processed_cmd" = "$JARVIS_NO_CHANGE_RESULT" || "$processed_cmd" = "$*" ) ]]; then
        _jarvis_debug "trace" "Same command, execute $* directly"
        command="$*"
     else
@@ -56,10 +56,9 @@ function @jarvis() {
     
 
     # Check for AI handler failures (this occurs *before* running any shell command)
-    if [[ $ai_ret -ne 0 ]]; then
-        echo "[JARVIS: AI processing failed before command execution]" >&2
-        [[ -n "$_jarvis_last_error" ]] && echo "AI Error: $_jarvis_last_error" >&2
-        return $ai_ret
+    if [[ $cmd_ret -ne 0 ]]; then
+        explain=$(_jarvis_process_command_result "$cmd_ret" "$*" "$(cat ${cmd_dir}/stdout 2>/dev/null)" "$(cat ${cmd_dir}/stder 2> /dev/null)")
+        _jarvis_debug "info" "$explain"
     fi
 
     _jarvis_cleanup_sessions
@@ -79,6 +78,7 @@ _jarvis_exec_command() {
     local stdout_file="${cmd_dir}/stdout"
 
     # Use script to capture both interactive and non-interactive command output
+    echo "===================CMD EXEC STARTED==================" >&2
     if [[ "$OSTYPE" == "darwin"* ]]; then
         # macOS: BSD script (no -c option, must use a shell for complex commands)
         script -q "$stdout_file" zsh -c "$cmd_to_execute"
@@ -86,8 +86,8 @@ _jarvis_exec_command() {
         # Linux: GNU script
         script -q -c "$cmd_to_execute" "$stdout_file"
     fi
-
     local cmd_ret=$?
+    echo "===================CMD EXEC ENDED: $cmd_ret==================" >&2
 
     # Display captured output to user
     # cat "$stdout_file"
@@ -144,9 +144,9 @@ _jarvis_precmd() {
 }
 
 # Add hooks
-autoload -Uz add-zsh-hook
-add-zsh-hook preexec _jarvis_preexec
-add-zsh-hook precmd _jarvis_precmd
+# autoload -Uz add-zsh-hook
+# add-zsh-hook preexec _jarvis_preexec
+# add-zsh-hook precmd _jarvis_precmd
 
 # Initialize
 _jarvis_init

@@ -112,18 +112,16 @@ _jarvis_debug() {
     local color_trace="\033[35m"  # Magenta for trace
     local color_info="\033[32m"   # Green for info
     # Debug-level log for function entry
-    if [[ -n "$JARVIS_DEBUG" ]]; then
-        case "$level" in
-            "info")
-                echo "${color_info}[JARVIS INFO]${color_reset} $msg" >&2
-                ;;
-            "debug")
-                [[ "$JARVIS_DEBUG" =~ ^[1-9]$ ]] && echo "${color_debug}[JARVIS DEBUG]${color_reset} $msg" >&2
-                ;;
-            "trace")
-                [[ "$JARVIS_DEBUG" -ge 2 ]] && echo "${color_trace}[JARVIS TRACE]${color_reset} $msg" >&2
-                ;;
-        esac
-    fi
+    case "$level" in
+        "info")
+            echo "${color_info} [🤖 ℹ️]${color_reset} $msg" >&2
+            ;;
+        "debug")
+            [[ "$JARVIS_DEBUG" -eq 1 ]] && echo "${color_debug} [🤖 🐛]${color_reset} $msg" >&2
+            ;;
+        "trace")
+            [[ "$JARVIS_DEBUG" -ge 2 ]] && echo "${color_trace} [🤖 🧵]${color_reset} $msg" >&2
+            ;;
+    esac
 }
 

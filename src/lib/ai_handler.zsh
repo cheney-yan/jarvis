@@ -32,6 +32,37 @@ _jarvis_process_custom_query() {
     return 0
 }
 
+_jarvis_process_command_result() {
+    local status_code="$1"
+    local command="$2"
+    local output="$3"
+    local error="$4"
+    
+    _jarvis_debug "trace" "Command result: status=$status_code, output=$output, error=$error"
+    local model_name=${JARVIS_LLM_MODEL:-grok-3-mini-fast-latest}
+    local system_prompt='You are a shell command result analyzer. You gives clear and short suggestions on failed commands. Given command, "'$2'", the command status_code is '$1', output "'$3'" and error "'$4'". Please provide suggestions of what happened, how can I refine my command to fix the issue.'
+    _jarvis_debug "trace" "Using model: $model_name, no change response: $no_change_response, system prompt: $system_prompt"
+    # Call llm grok directly to process the query
+    local result
+    result=$(llm -m "$model_name" -s "$system_prompt" "$query" 2>&1)
+    local llm_status=$?
+
+    _jarvis_debug "debug" "LLM response: $result"
+
+    # Check for timeout or failure
+    if [[ $llm_status -eq 124 || $llm_status -eq 137 ]]; then
+        echo "Query processing timed out after 30 seconds" >&2
+        return $llm_status
+    fi
+    if [[ $llm_status -ne 0 ]]; then
+        echo "Failed to process query: $result" >&2
+        return $llm_status
+    fi
+    
+    echo "$result"
+    return 0
+}
+
 # Presents a menu to the user to choose between refined command, original input, or cancel
 # Returns the chosen command's exit status, or 0 if cancelled
 _jarvis_get_user_command_choice() {
@@ -43,10 +74,10 @@ _jarvis_get_user_command_choice() {
     
     # Present options to the user
     echo "" >&3
-    echo "\033[1mPlease choose an action:\033[0m" >&3
-    echo "\033[1;32ma|Accept)      \033[0m Run: \033[0;32m${refined_cmd}\033[0m" >&3
-    echo "\033[1;33md|Deny)        \033[0m Run: \033[0;34m${original_cmd}\033[0m" >&3
-    echo "\033[1;31ms|Save History)\033[0m Save command to history only." >&3
+    echo "\033[1m👋 Please choose an action:\033[0m" >&3
+    echo "\033[1;32ma|👍 Accept)\033[0m Run: \033[0;32m${refined_cmd}\033[0m" >&3
+    echo "\033[1;33md|🖐️ Deny)  \033[0m Run: \033[0;34m${original_cmd}\033[0m" >&3
+    echo "\033[1;31ms|📑 Save)  \033[0m Save command to history, so you can edit and run later." >&3
 
     local choice=""
     while true; do
