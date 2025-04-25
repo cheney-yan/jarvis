@@ -1,57 +1,58 @@
-# Jarvis - AI-Powered ZSH Plugin PRD
+# Jarvis - AI-Powered Shell Assistant PRD
 
 ## Overview
-Jarvis is an intelligent ZSH plugin that enhances command-line interactions through AI-powered pre-processing and post-processing of commands.
+Jarvis is an intelligent, AI-powered shell assistant that enhances command-line interactions through natural language understanding, command suggestion, and post-execution analysis. Jarvis is designed to work with any POSIX-compatible shell (Zsh, Bash, etc.) by simply sourcing a script—no plugin system or shell hooks required.
 
 ## Core Features
 
-### 1. Pre-Command Processing
-- **Trigger**: Commands prefixed with '@jarvis' (configurable via settings)
-- **Natural Language Processing**: Convert natural language to shell commands
-- **Pattern Recognition**: Identify and parse command intents
-- **User Confirmation**: Present transformed commands for user approval
+### 1. Natural Language Command Processing
+- **Trigger**: Commands prefixed with `@jarvis` (configurable)
+- **Natural Language Understanding**: Converts user intent into shell commands
+- **Command Refinement**: Suggests improvements and corrections
+- **User Confirmation**: Presents refined commands for approval
 
-### 2. Post-Command Processing
-- **Command Execution Data Collection**:
+### 2. Post-Command Analysis
+- **Execution Data Collection**:
   - Exit status codes
-  - Standard error (stderr)
-  - Standard output (stdout)
-  - Command execution time
-- **Interactive Query System**:
-  - '@AI why' - Explain command failures
-  - '@AI what' - Summarize command results
-  - '@AI ?' - General command context
-
-### 3. MCP Integration
-- Leverage MCP for enhanced AI capabilities
-- Support for various AI models and services
-- Extensible architecture for future AI features
+  - Combined output (stdout/stderr)
+- **AI-Powered Explanations**:
+  - `@jarvis why` — Explain command failures
+  - `@jarvis ?` — Summarize or clarify command results
+- **Error Troubleshooting**: Provides actionable suggestions for fixing failed commands
 
 ## Technical Requirements
 
-### ZSH Integration
-- Hook into ZSH preexec and precmd functions
-- Maintain command history with metadata
-- Minimal performance impact on shell startup
+### Shell Integration
+- Works by sourcing `jarvis.plugin.zsh` in any shell session (Zsh, Bash, etc.)
+- No plugin hooks or shell-specific APIs required
+- Minimal impact on shell performance
 
 ### AI Processing
-- Asynchronous command processing
+- Requires Python 3 and the `llm` package (`pip install llm`)
+- Asynchronous and robust command processing
 - Configurable AI model selection
-- Cached responses for common queries
 
 ### Security
-- No sensitive data transmission
-- Local processing when possible
-- Secure API key management
+- No sensitive data transmission outside the local machine unless configured
+- Local processing preferred when possible
+- Secure handling of API keys and credentials
 
 ## Success Metrics
-- Command interpretation accuracy
-- Response time < 1s for common queries
-- User adoption and engagement
-- Error reduction in command usage
+- High command interpretation accuracy
+- Fast response times for common queries
+- Positive user feedback and adoption
+- Reduction in command-line errors and friction
 
 ## Future Enhancements
-- Custom command pattern recognition
-- Learning from user corrections
-- Multi-model AI support
-- Plugin ecosystem integration
+- Smarter command pattern recognition
+- Learning from user corrections and feedback
+- Multi-model and multi-backend AI support
+- Advanced session management and history features
+- Broader shell and platform compatibility
+
+# TBD
+
+## 3. MCP and Python Integration
+- **MCP Integration**: Leverage MCP for advanced AI capabilities
+- **Python/llm Backend**: Uses Python and the `llm` package for command processing and analysis
+- **Extensible**: Designed for easy extension with new AI models and features

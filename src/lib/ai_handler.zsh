@@ -19,12 +19,8 @@ _jarvis_process_custom_query() {
     _jarvis_debug "debug" "LLM response: $result"
 
     # Check for timeout or failure
-    if [[ $llm_status -eq 124 || $llm_status -eq 137 ]]; then
-        echo "Query processing timed out after 30 seconds" >&2
-        return $llm_status
-    fi
     if [[ $llm_status -ne 0 ]]; then
-        echo "Failed to process query: $result" >&2
+        echo "🤖 Failed: $result, status $llm_status" >&2
         return $llm_status
     fi
     
@@ -49,13 +45,8 @@ _jarvis_process_command_result() {
 
     _jarvis_debug "debug" "LLM response: $result"
 
-    # Check for timeout or failure
-    if [[ $llm_status -eq 124 || $llm_status -eq 137 ]]; then
-        echo "Query processing timed out after 30 seconds" >&2
-        return $llm_status
-    fi
     if [[ $llm_status -ne 0 ]]; then
-        echo "Failed to process query: $result" >&2
+        echo "🤖 Failed: $result, status $llm_status" >&2
         return $llm_status
     fi
     
@@ -74,7 +65,7 @@ _jarvis_get_user_command_choice() {
     
     # Present options to the user
     echo "" >&3
-    echo "\033[1m👋 Please choose an action:\033[0m" >&3
+    echo "\033[1m👋 I have some suggestion to your request:\033[0m" >&3
     echo "\033[1;32ma|👍 Accept)\033[0m Run: \033[0;32m${refined_cmd}\033[0m" >&3
     echo "\033[1;33md|🖐️ Deny)  \033[0m Run: \033[0;34m${original_cmd}\033[0m" >&3
     echo "\033[1;31ms|📑 Save)  \033[0m Save command to history, so you can edit and run later." >&3

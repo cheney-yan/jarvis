@@ -13,8 +13,6 @@ mkdir -p "$JARVIS_DATA_HOME" "$JARVIS_CACHE_HOME" "$JARVIS_STATE_HOME" "$JARVIS_
 
 # Source dependencies
 source "${JARVIS_HOME}/lib/utils.zsh"      # Load utilities first for spinner
-source "${JARVIS_HOME}/lib/preprocess.zsh"
-source "${JARVIS_HOME}/lib/postprocess.zsh"
 source "${JARVIS_HOME}/lib/ai_handler.zsh"
 
 # Define the @jarvis command function
@@ -40,7 +38,7 @@ function @jarvis() {
     local processed_cmd="$(cat "${cmd_dir}/ai_output")"
     # compare processed_cmd with $*
     _jarvis_debug "trace" "Comparing processed command: $processed_cmd with $JARVIS_NO_CHANGE_RESULT"
-    if [[ $ai_ret -eq 0 && ( "$processed_cmd" = "$JARVIS_NO_CHANGE_RESULT" || "$processed_cmd" = "$*" ) ]]; then
+    if [[ $ai_ret -ne 0 || ( "$processed_cmd" = "$JARVIS_NO_CHANGE_RESULT" || "$processed_cmd" = "$*" ) ]]; then
        _jarvis_debug "trace" "Same command, execute $* directly"
        command="$*"
     else
@@ -57,8 +55,8 @@ function @jarvis() {
 
     # Check for AI handler failures (this occurs *before* running any shell command)
     if [[ $cmd_ret -ne 0 ]]; then
-        explain=$(_jarvis_process_command_result "$cmd_ret" "$*" "$(cat ${cmd_dir}/stdout 2>/dev/null)" "$(cat ${cmd_dir}/stder 2> /dev/null)")
-        _jarvis_debug "info" "$explain"
+        explain=$(_jarvis_process_command_result "$cmd_ret" "$command" "$(cat ${cmd_dir}/stdout 2>/dev/null)" "$(cat ${cmd_dir}/stder 2> /dev/null)")
+        [[ $? -eq 0 ]] && _jarvis_debug "info" "$explain"
     fi
 
     _jarvis_cleanup_sessions
@@ -126,27 +124,6 @@ _jarvis_init() {
     trap '_jarvis_debug "debug" "Cleaning up Jarvis session"; rm -rf "$_jarvis_session_dir"' EXIT
 }
 
-# Pre-command processing
-_jarvis_preexec() {
-    local cmd="$1"
-    _jarvis_last_command="$cmd"
-    _jarvis_debug "trace" "Pre-command: $cmd"
-}
-
-# Post-command processing
-_jarvis_precmd() {
-    _jarvis_last_status=$?
-    _jarvis_debug "trace" "Post-command status: $_jarvis_last_status"
-    if [[ -n "$_jarvis_last_command" ]]; then
-        _jarvis_debug "debug" "Processing command result: $_jarvis_last_command"
-        _jarvis_process_command_result
-    fi
-}
-
-# Add hooks
-# autoload -Uz add-zsh-hook
-# add-zsh-hook preexec _jarvis_preexec
-# add-zsh-hook precmd _jarvis_precmd
 
 # Initialize
 _jarvis_init
