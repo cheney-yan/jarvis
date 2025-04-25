@@ -44,9 +44,9 @@ _jarvis_get_user_command_choice() {
     # Present options to the user
     echo "" >&3
     echo "\033[1mPlease choose an action:\033[0m" >&3
-    echo "\033[1;32ma|Accept)      \033[0m Use refined command: \033[0;32m${refined_cmd}\033[0m" >&3
-    echo "\033[1;33md|Deny)        \033[0m Use original input: \033[0;34m${original_cmd}\033[0m" >&3
-    echo "\033[1;31ms|Save History)\033[0m Cancel and store the refined command to the shell history: \033[0;31m${refined_cmd}\033[0m" >&3
+    echo "\033[1;32ma|Accept)      \033[0m Run: \033[0;32m${refined_cmd}\033[0m" >&3
+    echo "\033[1;33md|Deny)        \033[0m Run: \033[0;34m${original_cmd}\033[0m" >&3
+    echo "\033[1;31ms|Save History)\033[0m Save command to history only." >&3
 
     local choice=""
     while true; do
