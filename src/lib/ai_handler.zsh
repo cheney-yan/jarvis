@@ -68,7 +68,7 @@ _jarvis_process_custom_query() {
     echo "\033[1mPlease choose an action:\033[0m" >&3
     echo "\033[1;32m1)\033[0m Use refined command: \033[0;32m${refined_cmd}\033[0m" >&3
     echo "\033[1;33m2)\033[0m Use original input: \033[0;34m${original_cmd}\033[0m" >&3
-    echo "\033[1;31m3)\033[0m Cancel" >&3
+    echo "\033[1;31m3)\033[0m Cancel and store the refined command to the shell history: \033[0;31m${refined_cmd}\033[0m" >&3
 
     local choice=""
     while true; do
@@ -88,8 +88,9 @@ _jarvis_process_custom_query() {
                 return $?
                 ;;
             3)
+                print -s "$refined_cmd"  # Push refined command to shell history
                 exec 3>&-  # Close terminal fd
-                return 1
+                return 0
                 ;;
             *)
                 echo -ne "\r\033[K" >&3  # Clear the line
