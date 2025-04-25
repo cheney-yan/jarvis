@@ -14,7 +14,7 @@ _jarvis_process_command_result() {
     _jarvis_last_status="$(cat "${_jarvis_session_dir}/${_jarvis_command_count}/status" 2>/dev/null)"
     
     # Store command execution data
-    _jarvis_store_command_data
+    _jarvis_store_command_data 
 }
 
 # Store command execution data for later analysis

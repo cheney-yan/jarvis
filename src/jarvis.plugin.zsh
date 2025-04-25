@@ -6,6 +6,7 @@ JARVIS_DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}/jarvis"
 JARVIS_CACHE_HOME="${XDG_CACHE_HOME:-$HOME/.cache}/jarvis"
 JARVIS_STATE_HOME="${XDG_STATE_HOME:-$HOME/.local/state}/jarvis"
 JARVIS_SESSION_DIR="${JARVIS_STATE_HOME}/sessions"
+JARVIS_NO_CHANGE_RESULT="-NO-CHANGE-NEEDED-"
 
 # Create necessary directories
 mkdir -p "$JARVIS_DATA_HOME" "$JARVIS_CACHE_HOME" "$JARVIS_STATE_HOME" "$JARVIS_SESSION_DIR"
@@ -23,100 +24,74 @@ function @jarvis() {
     
     # Create command-specific directory
     local cmd_dir="${_jarvis_session_dir}/${_jarvis_command_count}"
+    _jarvis_debug "trace" "Creating session directory: $cmd_dir"
     mkdir -p "$cmd_dir"
     
     # Save input command
     echo "@jarvis $*" > "${cmd_dir}/input"
+    _jarvis_debug "trace" "Saved input command: @jarvis $* to ${cmd_dir}/input"
     
     # Process through AI handler
-    _jarvis_handle_ai_command "@jarvis $*" > "${cmd_dir}/ai_output" 2> "${cmd_dir}/ai_error"
+    _jarvis_process_custom_query "$*" > "${cmd_dir}/ai_output"
     local ai_ret=$?
-    
+    _jarvis_debug "debug" "AI handler returned: $ai_ret"
+
     # Get the processed command and any errors
     local processed_cmd="$(cat "${cmd_dir}/ai_output")"
-    _jarvis_last_error="$(cat "${cmd_dir}/ai_error")"
+    # compare processed_cmd with $*
+    _jarvis_debug "trace" "Comparing processed command: $processed_cmd with $JARVIS_NO_CHANGE_RESULT"
+    if [[ $ai_ret -eq 0 && "$processed_cmd" = "$JARVIS_NO_CHANGE_RESULT" ]]; then
+       _jarvis_debug "trace" "Same command, execute $* directly"
+       command="$*"
+    else
+        _jarvis_debug "trace" "new command suggested, provide options for user to choose from"
+        command=$(_jarvis_get_user_command_choice "$processed_cmd" "$*")
+        if [[ "$command" = "" ]]; then
+            print -s "$processed_cmd"
+            return 0
+        fi
+    fi
+    _jarvis_exec_command "$command" "$cmd_dir"
+    cmd_ret=$?
     
-    _jarvis_debug "trace" "AI handler returned: $ai_ret"
-    
-    # Check for AI handler failures
+
+    # Check for AI handler failures (this occurs *before* running any shell command)
     if [[ $ai_ret -ne 0 ]]; then
-        echo "[JARVIS: AI handler failed]" >&2
-        [[ -n "$_jarvis_last_error" ]] && echo "$_jarvis_last_error" >&2
+        echo "[JARVIS: AI processing failed before command execution]" >&2
+        [[ -n "$_jarvis_last_error" ]] && echo "AI Error: $_jarvis_last_error" >&2
         return $ai_ret
     fi
+
+    _jarvis_cleanup_sessions
     
-    # If the user chose to cancel or no command was selected
-    if [[ -z "$processed_cmd" ]]; then
-        echo "[JARVIS: Operation cancelled]" >&2
-        return 1
-    fi
-    
-    # Extract just the command from the output
-    if ! echo "$processed_cmd" | python3 -c 'import json,sys; json.load(sys.stdin)' &>/dev/null; then
-        # If the output is not JSON, use it directly (old format compatibility)
-        cmd_to_execute="$processed_cmd"
-    else
-        # Get the selected command from the JSON response
-        cmd_to_execute=$(echo "$processed_cmd" | python3 -c 'import json,sys
-try:
-    data=json.load(sys.stdin)
-    if data["success"]: print(data.get("refined",data.get("original","")))
-except: print("")')
-    fi
-    
+    return $cmd_ret
+}
+
+_jarvis_exec_command() {
+    local cmd_to_execute="$1"
+    local cmd_dir="$2"
     _jarvis_debug "debug" "Executing command: $cmd_to_execute"
     
     # Save the command that will actually be executed
     echo "$cmd_to_execute" > "${cmd_dir}/executed_command"
     
-    # Add both original and transformed commands to history
-    print -s "@jarvis $*"  # Original command
-    print -s "$cmd_to_execute"  # Transformed command
-    
-    # Create temp files for capturing output
+    # Create temp file for capturing output
     local stdout_file="${cmd_dir}/stdout"
-    local stderr_file="${cmd_dir}/stderr"
-    
-    # Execute the processed command with output redirection
-    if [[ "$cmd_to_execute" =~ [\|\&\;\<\>\(\)] ]]; then
-        # Use eval for commands with shell operators
-        eval "$cmd_to_execute" > "$stdout_file" 2> "$stderr_file"
+
+    # Use script to capture both interactive and non-interactive command output
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        # macOS: BSD script (no -c option, must use a shell for complex commands)
+        script -q "$stdout_file" zsh -c "$cmd_to_execute"
     else
-        # Execute simple commands directly
-        eval "$cmd_to_execute" > "$stdout_file" 2> "$stderr_file"
+        # Linux: GNU script
+        script -q -c "$cmd_to_execute" "$stdout_file"
     fi
+
     local cmd_ret=$?
-    
-    # Display stdout and stderr to user
-    cat "$stdout_file"
-    
-    # If command failed or stderr is not empty, show error info
-    if [[ $cmd_ret -ne 0 || -s "$stderr_file" ]]; then
-        echo "[JARVIS: Command failed with status $cmd_ret]" >&2
-        if [[ -s "$stderr_file" ]]; then
-            cat "$stderr_file" >&2
-        fi
-        return 0
-    fi
-    
-    # Save status code
-    echo "$ai_status" > "${cmd_dir}/status"
-    
-    # Store outputs for processing
-    _jarvis_last_output="$(cat "${cmd_dir}/stdout" 2>/dev/null)"
-    [[ -s "${cmd_dir}/stderr" ]] && _jarvis_last_error="${_jarvis_last_error}\n$(cat "${cmd_dir}/stderr" 2>/dev/null)"
-    
-    _jarvis_debug "trace" "Command execution returned: $ai_status"
-    _jarvis_debug "trace" "Output: $_jarvis_last_output"
-    [[ -n "$_jarvis_last_error" ]] && _jarvis_debug "trace" "Error: $_jarvis_last_error"
-    
-    # Output the command result to the terminal
-    [[ -n "$_jarvis_last_output" ]] && echo "$_jarvis_last_output"
-    
-    # Run cleanup
-    _jarvis_cleanup_sessions
-    
-    return $ai_status
+
+    # Display captured output to user
+    # cat "$stdout_file"
+    return $cmd_ret
 }
 
 # Cleanup function for session files

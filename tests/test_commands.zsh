@@ -27,7 +27,7 @@ test_postprocessing() {
 # Test AI handler
 test_ai_handler() {
     echo "Testing AI handler..."
-    _jarvis_handle_ai_command "@jarvis what happened"
+    _jarvis_process_custom_query "@jarvis what happened"
 }
 
 # Run all tests
