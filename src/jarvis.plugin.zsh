@@ -32,11 +32,26 @@ function @jarvis() {
     _jarvis_handle_ai_command "@jarvis $*" > "${cmd_dir}/ai_output" 2> "${cmd_dir}/ai_error"
     local ai_ret=$?
     
-    # Get the processed command
+    # Get the processed command and any errors
     local processed_cmd="$(cat "${cmd_dir}/ai_output")"
     _jarvis_last_error="$(cat "${cmd_dir}/ai_error")"
     
     _jarvis_debug "trace" "AI handler returned: $ai_ret"
+    
+    # Check for AI handler failures
+    if [[ $ai_ret -ne 0 ]]; then
+        echo "[JARVIS: AI handler failed]" >&2
+        [[ -n "$_jarvis_last_error" ]] && echo "$_jarvis_last_error" >&2
+        return $ai_ret
+    fi
+    
+    # Check for empty command
+    if [[ -z "$processed_cmd" ]]; then
+        echo "[JARVIS: AI handler returned empty command]" >&2
+        [[ -n "$_jarvis_last_error" ]] && echo "$_jarvis_last_error" >&2
+        return 1
+    fi
+    
     _jarvis_debug "debug" "Executing command: $processed_cmd"
     
     # Save the command that will actually be executed
