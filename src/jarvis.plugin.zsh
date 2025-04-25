@@ -39,10 +39,37 @@ function @jarvis() {
     _jarvis_debug "trace" "AI handler returned: $ai_ret"
     _jarvis_debug "debug" "Executing command: $processed_cmd"
     
-    # Execute the processed command
-    eval "$processed_cmd" > "${cmd_dir}/stdout" 2> "${cmd_dir}/stderr"
+    # Save the command that will actually be executed
+    echo "$processed_cmd" > "${cmd_dir}/executed_command"
+    
+    # Add both original and transformed commands to history
+    print -s "@jarvis $*"  # Original command
+    print -s "$processed_cmd"  # Transformed command
+    
+    # Create temp files for capturing output
+    local stdout_file="${cmd_dir}/stdout"
+    local stderr_file="${cmd_dir}/stderr"
+    
+    # Execute the processed command with output redirection
+    if [[ "$processed_cmd" =~ [\|\&\;\<\>\(\)] ]]; then
+        # Use eval for commands with shell operators
+        eval "$processed_cmd" > "$stdout_file" 2> "$stderr_file"
+    else
+        # Execute simple commands directly
+        $processed_cmd > "$stdout_file" 2> "$stderr_file"
+    fi
     local cmd_ret=$?
-    fc -P    # Restore original history file
+    
+    # Display stdout and stderr to user
+    cat "$stdout_file"
+    
+    # If command failed or stderr is not empty, show error info
+    if [[ $cmd_ret -ne 0 || -s "$stderr_file" ]]; then
+        echo "[JARVIS: Command failed with status $cmd_ret]" >&2
+        if [[ -s "$stderr_file" ]]; then
+            cat "$stderr_file" >&2
+        fi
+    fi
     
     # Save status code
     echo "$cmd_ret" > "${cmd_dir}/status"
@@ -82,7 +109,7 @@ _jarvis_init() {
     typeset -g _jarvis_last_status=0
     typeset -g _jarvis_last_output=""
     typeset -g _jarvis_last_error=""
-    typeset -g _jarvis_session_dir="${JARVIS_SESSION_DIR}/session_$$"
+    typeset -g _jarvis_session_dir="${JARVIS_SESSION_DIR}/$$"
     typeset -g _jarvis_command_count=0
     
     # Clean up sessions from dead processes

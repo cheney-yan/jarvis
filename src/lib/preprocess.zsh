@@ -6,22 +6,22 @@ _jarvis_process_command() {
     local transformed_cmd=""
     
     # TODO: Implement MCP integration for command transformation
-    transformed_cmd="$(_javis_transform_command "$cmd")"
+    transformed_cmd="$(_jarvis_transform_command "$cmd")"
     
     if [[ -n "$transformed_cmd" && "$transformed_cmd" != "$cmd" ]]; then
-        _javis_confirm_command "$transformed_cmd"
+        _jarvis_confirm_command "$transformed_cmd"
     fi
 }
 
 # Transform command using AI
-_javis_transform_command() {
+_jarvis_transform_command() {
     local cmd="$1"
     # TODO: Add MCP integration for command transformation
     echo "$cmd"
 }
 
 # Ask user to confirm transformed command
-_javis_confirm_command() {
+_jarvis_confirm_command() {
     local cmd="$1"
     echo "Suggested command: $cmd"
     echo -n "Execute this command? [y/N] "
